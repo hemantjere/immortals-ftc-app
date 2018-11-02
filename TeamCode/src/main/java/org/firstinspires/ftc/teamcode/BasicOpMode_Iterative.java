@@ -33,6 +33,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
@@ -50,32 +51,51 @@ import com.qualcomm.robotcore.util.Range;
  * Remove or comment out the @Disabled line to add this opmode to the Driver Station OpMode list
  */
 
-@TeleOp(name="Basic: Iterative OpMode", group="Iterative Opmode")
+@TeleOp(name="Tank Drive", group="Iterative Opmode")
 // @Disabled
 public class BasicOpMode_Iterative extends OpMode
 {
-    // Declare OpMode members.
+    /*
+     * Declare OpMode members.
+    */
+    // hi my name is in immortals
     private ElapsedTime runtime = new ElapsedTime();
-    private DcMotor leftDrive = null;
-    private DcMotor rightDrive = null;
+
+    // Drive variable
+    private DcMotor leftDriveMotor = null;
+    private DcMotor rightDriveMotor = null;
+    private DcMotor elementLiftMotor = null;
+    private DcMotor collectorMotor = null;
+    private DcMotor robotLiftMotor = null;
+
+    private float DRIVE_MULTIPLE = .4f;
+    private float ELEMENT_LIFT_DRIVE_MULTIPLE = .5f;
+    private float COLLECTOR_DRIVE_MULTIPLE = .2f;
+    private float ROBOT_LIFT_DRIVE_MULTIPLE = .2f;
 
     /*
      * Code to run ONCE when the driver hits INIT
      */
     @Override
     public void init() {
-        telemetry.addData("Status", "Initialized");
+        telemetry.addData("Status", "Initializing");
 
         // Initialize the hardware variables. Note that the strings used here as parameters
         // to 'get' must correspond to the names assigned during the robot configuration
         // step (using the FTC Robot Controller app on the phone).
-        leftDrive  = hardwareMap.get(DcMotor.class, "left_drive");
-        rightDrive = hardwareMap.get(DcMotor.class, "right_drive");
+        leftDriveMotor  = hardwareMap.get(DcMotor.class, "left_drive");
+        rightDriveMotor = hardwareMap.get(DcMotor.class, "right_drive");
+        elementLiftMotor = hardwareMap.get(DcMotor.class, "element_lift");
+        collectorMotor = hardwareMap.get(DcMotor.class, "collector");
+        robotLiftMotor = hardwareMap.get(DcMotor.class, "robot_lift");
 
         // Most robots need the motor on one side to be reversed to drive forward
         // Reverse the motor that runs backwards when connected directly to the battery
-        leftDrive.setDirection(DcMotor.Direction.FORWARD);
-        rightDrive.setDirection(DcMotor.Direction.REVERSE);
+        leftDriveMotor.setDirection(DcMotor.Direction.FORWARD);
+        rightDriveMotor.setDirection(DcMotor.Direction.REVERSE);
+        elementLiftMotor.setDirection(DcMotor.Direction.FORWARD);
+        collectorMotor.setDirection(DcMotor.Direction.FORWARD);
+        robotLiftMotor.setDirection(DcMotor.Direction.FORWARD);
 
         // Tell the driver that initialization is complete.
         telemetry.addData("Status", "Initialized");
@@ -105,28 +125,75 @@ public class BasicOpMode_Iterative extends OpMode
         double leftPower;
         double rightPower;
 
+        //Telemetry display on driver station
+        telemetry.addData("Status", "Run Time: " + runtime.toString());
+        telemetry.addData("Status", "gamepad1: " + gamepad1.toString());
+        telemetry.addData("Status", "gamepad2: " + gamepad2.toString());
+
         // Choose to drive using either Tank Mode, or POV Mode
         // Comment out the method that's not used.  The default below is POV.
 
-        // POV Mode uses left stick to go forward, and right stick to turn.
-        // - This uses basic math to combine motions and is easier to drive straight.
-        double drive = -gamepad1.left_stick_y;
-        double turn  =  gamepad1.right_stick_x;
-        leftPower    = Range.clip(drive + turn, -1.0, 1.0) ;
-        rightPower   = Range.clip(drive - turn, -1.0, 1.0) ;
+        // element lift
+        if (gamepad1.left_bumper) {
+            if (elementLiftMotor.getDirection() == DcMotor.Direction.FORWARD) {
+                elementLiftMotor.setDirection(DcMotor.Direction.REVERSE);
+            }
+            else {
+                elementLiftMotor.setDirection(DcMotor.Direction.FORWARD);
+            }
+        }
 
-        // Tank Mode uses one stick to control each wheel.
-        // - This requires no math, but it is hard to drive forward slowly and keep straight.
-        // leftPower  = -gamepad1.left_stick_y ;
-        // rightPower = -gamepad1.right_stick_y ;
+        // collector
+        if (gamepad1.dpad_up) {
+            collectorMotor.setPower(0);
+            collectorMotor.setDirection(DcMotor.Direction.FORWARD);
+            collectorMotor.setPower(COLLECTOR_DRIVE_MULTIPLE);
+        }
 
-        // Send calculated power to wheels
-        leftDrive.setPower(leftPower);
-        rightDrive.setPower(rightPower);
+        if (gamepad1.dpad_down) {
+            collectorMotor.setPower(0);
+            collectorMotor.setDirection(DcMotor.Direction.REVERSE);
+            collectorMotor.setPower(COLLECTOR_DRIVE_MULTIPLE);
+        }
 
-        // Show the elapsed game time and wheel power.
-        telemetry.addData("Status", "Run Time: " + runtime.toString());
-        telemetry.addData("Motors", "left (%.2f), right (%.2f)", leftPower, rightPower);
+        if (gamepad1.dpad_left) {
+            collectorMotor.setPower(0);
+        }
+
+        // robot lift
+        if (gamepad1.right_bumper) {
+            if (robotLiftMotor.getDirection() == DcMotor.Direction.FORWARD) {
+                robotLiftMotor.setDirection(DcMotor.Direction.REVERSE);
+            }
+            else {
+                robotLiftMotor.setDirection(DcMotor.Direction.FORWARD);
+            }
+        }
+
+        leftDriveMotor.setPower(gamepad1.left_stick_y * DRIVE_MULTIPLE);
+        rightDriveMotor.setPower(gamepad1.right_stick_y * DRIVE_MULTIPLE);
+        elementLiftMotor.setPower(gamepad1.left_trigger * ELEMENT_LIFT_DRIVE_MULTIPLE);
+        robotLiftMotor.setPower(gamepad1.right_trigger * ROBOT_LIFT_DRIVE_MULTIPLE);
+
+//        // POV Mode uses left stick to go forward, and right stick to turn.
+//        // - This uses basic math to combine motions and is easier to drive straight.
+//        double drive = -gamepad1.left_stick_y;
+//        double turn  =  gamepad1.right_stick_x;
+//        leftPower    = Range.clip(drive + turn, -1.0, 1.0) ;
+//        rightPower   = Range.clip(drive - turn, -1.0, 1.0) ;
+//
+//        // Tank Mode uses one stick to control each wheel.
+//        // - This requires no math, but it is hard to drive forward slowly and keep straight.
+//        // leftPower  = -gamepad1.left_stick_y ;
+//        // rightPower = -gamepad1.right_stick_y ;
+//
+//        // Send calculated power to wheels
+//        leftDrive.setPower(leftPower);
+//        rightDrive.setPower(rightPower);
+//
+//        // Show the elapsed game time and wheel power.
+//        telemetry.addData("Status", "Run Time: " + runtime.toString());
+//        telemetry.addData("Motors", "left (%.2f), right (%.2f)", leftPower, rightPower);
     }
 
     /*
